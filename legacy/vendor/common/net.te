@@ -25,16 +25,30 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# pcc_component is new in Android 17 - it carries net_domain() at
-# system/sepolicy/private/pcc_component.te:10, so this allow reached it and
-# tripped the neverallow at pcc_component.te:366
+# The legacy-um rule "allow netdomain self:icmp_socket create_socket_perms;"
+# was removed here rather than narrowed.
+#
+# It is a stale duplicate of a platform rule that already exists, at
+# system/sepolicy/private/net.te:30:
+#
+#   allow { netdomain -pcc_component } self:{ icmp_socket udp_socket rawip_socket } create_socket_perms;
+#
+# The platform grants this permission with pcc_component already excluded, as
+# part of Android 17's tightening around pcc_component. The legacy-um copy
+# predates that and has no exclusion, so it reached pcc_component - which
+# carries net_domain() at system/sepolicy/private/pcc_component.te:10 - and
+# tripped the neverallow at pcc_component.te:366:
+#
 #   (neverallow pcc_component pcc_component
 #      { icmp_socket udp_socket rawip_socket } create_socket_perms)
-# Exclude it. This narrows the rule rather than weakening policy: the
-# permission is kept for every other netdomain domain, and only the one domain
-# the platform forbids is dropped. It is also unreachable in practice - the
-# tree never instantiates pcc_component, which needs Android 17 Private Compute
-# Core / Microdroid support this SoC does not have.
-# Attribute subtraction in an allow source set is standard AOSP, see
-# system/sepolicy/private/adbd_common.te:27.
-allow { netdomain -pcc_component } self:icmp_socket create_socket_perms;
+#
+# Deleting the duplicate loses nothing: every netdomain domain except
+# pcc_component still gets the permission, from the platform rule. And the
+# exclusion cannot be expressed here instead, because pcc_component is declared
+# in system/sepolicy/private and is not exported to vendor policy, so
+# checkpolicy rejects it as an unknown type when vendor_sepolicy.conf is built
+# on its own.
+#
+# Upstream lineage-24.0-legacy-um at 33df3b661808 still carries the stale rule,
+# so there is nothing to pull instead. A Gerrit change for this deletion should
+# go to LineageOS/android_device_qcom_sepolicy_vndr.
