@@ -25,4 +25,16 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-allow netdomain self:icmp_socket create_socket_perms;
+# pcc_component is new in Android 17 - it carries net_domain() at
+# system/sepolicy/private/pcc_component.te:10, so this allow reached it and
+# tripped the neverallow at pcc_component.te:366
+#   (neverallow pcc_component pcc_component
+#      { icmp_socket udp_socket rawip_socket } create_socket_perms)
+# Exclude it. This narrows the rule rather than weakening policy: the
+# permission is kept for every other netdomain domain, and only the one domain
+# the platform forbids is dropped. It is also unreachable in practice - the
+# tree never instantiates pcc_component, which needs Android 17 Private Compute
+# Core / Microdroid support this SoC does not have.
+# Attribute subtraction in an allow source set is standard AOSP, see
+# system/sepolicy/private/adbd_common.te:27.
+allow { netdomain -pcc_component } self:icmp_socket create_socket_perms;
